@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  EMPLOYEE
+}
+
+enum AssignmentStatus {
+  UPCOMING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REVIEW
+  PENDING
+}
+
+model User {
+  id            String     @id @default(uuid())
+  name          String
+  email         String     @unique
+  phone         String?
+  location     Location?  @relation(fields: [locationId], references: [id])
+  locationId   String?
+  supervisorId  String?
+  joinDate      DateTime?
+  status        String?    // e.g. 'active', 'inactive'
+  role          Role       @default(EMPLOYEE)
+  password      String
+  emailVerified Boolean    @default(false)
+  hourlyRate    Float?
+  overtimeRate  Float?
+  assignments   Assignment[] @relation("EmployeeAssignments")
+  clockLogs     ClockLog[]
+  supervisor    User?      @relation("UserSupervisor", fields: [supervisorId], references: [id])
+  subordinates  User[]     @relation("UserSupervisor")
+  notificationSettings Json?
+  themeSettings        Json?
+  verificationCodes VerificationCode[]
+  refreshToken String?
+  payrolls           Payroll[]
+  reports            Report[]        @relation("GeneratedReports")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  profilePicture String?
+  cvUrl          String?
+}
+
+
+model ClockLog {
+  id            String      @id @default(uuid())
+  employeeId    String
+  clockIn       DateTime
+  clockOut      DateTime?
+  regularHours  Float
+  overtimeHours Float
+  location      String?
+  User          User        @relation(fields: [employeeId], references: [id])
+  createdAt     DateTime    @default(now())
+  assignmentId  String?     // <-- Add this line
+  assignment    Assignment? @relation(fields: [assignmentId], references: [id]) // <-- Add this line
+}
+
+model Assignment {
+  id                 String      @id @default(uuid())
+  employeeId         String
+  title              String
+  type               String?
+  description        String?
+  status             AssignmentStatus
+  reviewed           Boolean     @default(false)
+  priority           String?
+  location           String
+  estimatedHours     Float?
+  dueDate            DateTime?
+  startTime          DateTime?
+  endTime            DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  specialInstructions String?
+  notes              String?
+  employee           User        @relation("EmployeeAssignments", fields: [employeeId], references: [id])
+  clockLogs          ClockLog[]  // <-- Add this line for back relation
+  workplaceId        String?
+  workplace          Workplace?  @relation(fields: [workplaceId], references: [id])
+}
+
+model VerificationCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String
+  type      String   // 'EMAIL_VERIFICATION' | 'PASSWORD_RESET'
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Workplace {
+  id        String   @id @default(uuid())
+  name      String
+  address   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  assignments Assignment[]
+}
+
+model Location {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  users     User[] 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+model PaymentSettings {
+  id           String   @id @default(uuid())
+  regularRate  Float
+  overtimeRate Float
+  effectiveFrom DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Payroll {
+  id          String   @id @default(uuid())
+  userId      String
+  periodStart DateTime
+  periodEnd   DateTime
+  regularPay  Float
+  overtimePay Float
+  totalPay    Float
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  type        String   // 'task', 'attendance', 'performance'
+  data        Json
+  generatedBy String
+  generatedAt DateTime @default(now())
+
+  user        User     @relation("GeneratedReports", fields: [generatedBy], references: [id])
+}
+
+
+
